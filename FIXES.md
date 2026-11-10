@@ -322,3 +322,110 @@ journal line; `stop-reminder.py` exited 0. All 13 agent frontmatters and
 both skill frontmatters parse as YAML (an unquoted colon in `scribe.md`'s
 description broke parsing and was fixed before commit). `mcp_server.py`
 untouched, so no MCP re-smoke was needed.
+
+## 14. Audit criticals C1–C5 + quick wins H6/M5 (fixes, 2026-11-11)
+
+A deep audit of the pristine upstream snapshot (2026-11-11) found five
+Criticals and two quick wins still open in this repo. All six fixes below
+are applied in this commit; nothing else in the audit (threat-model
+redesign, executor verification heuristics, Burp REST client, single-turn
+chat agent) was touched. `reports/unsaidtalks_pentest_report_2026-04-26.md`
+was not touched.
+
+- **C1 — autonomous-tool scope bypass (Critical).**
+  `mcp_server.py:684` (`pentest_run_autonomous` handler) ran nmap + nikto
+  with no scope check while the `recon_*` handlers validated. Now:
+  `mcp_server.py:500-508` validates `start_url` via the existing
+  `ScopeValidator` before any recon runs, refusing out-of-scope targets
+  with `Error: Host '<host>' is not in scope. Authorized hosts: ...`, and
+  the handler re-validates at `:684` (same pattern as the recon handlers,
+  including the "no validator loaded" behaviour).
+  Follow-up found during verification: the scope check initially sat
+  inside the handler, but `call_tool` launches the browser *before*
+  dispatching, so in an environment without Chromium an out-of-scope
+  request died with a Playwright launch error instead of the refusal.
+  `mcp_server.py:484-517` now scope-checks every URL-carrying tool
+  (`browser_navigate`, `pentest`, `pentest_crawl_application`,
+  `pentest_run_autonomous`, `pentest_skill_execute`,
+  `pentest_interactive_explore_and_test`) *before* browser/spider/
+  analyzer initialisation, and the whole block (guards + dispatch) runs
+  inside one `try`, so a scope refusal or an initialisation failure is
+  returned as a clean tool error (redacted in the audit log) instead of
+  raising out of `call_tool` as an MCP protocol error.
+- **C2 — `pentest` tool browser init (Critical).**
+  The guard was `name.startswith("browser_") or
+  name.startswith("pentest_")`, which the tool named exactly `pentest`
+  matched neither of, leaving `browser` None and `SimplePentest`
+  crashing. `mcp_server.py:40-45` adds an explicit
+  `_BROWSER_TOOLS = frozenset({"pentest", "pentest_crawl_application",
+  "pentest_run_autonomous", "pentest_interactive_explore_and_test"})`
+  and `mcp_server.py:511` now guards on `name.startswith("browser_") or
+  name in _BROWSER_TOOLS`. The 17-tool inventory is unchanged.
+- **C3 — credentials in cleartext in logs (Critical).**
+  Three layers, all via the existing `SecretsManager`:
+  (a) `mcp_server.py:54-67` adds `_redact_tool_arguments()` (dict →
+  `mask_dict`, str → `mask_string`, else passthrough) and the `tool_error`
+  log site at `:1143` now logs redacted arguments; the whole file was
+  audited — it is the only argument-carrying log site. (b) `agent.py:33`
+  adds `self.secrets_manager` and `:291` logs
+  `str(self.secrets_manager.mask_dict(tool_input))` in `_execute_tool`.
+  (c) Defense-in-depth in `safety/audit_log.py:15-22` — a module-level
+  `SecretsManager` plus `_redact_details()`, applied in `log_action`
+  (`:78-79`, target + details) and `log_error` (`:140-141`, message +
+  details). Log structure is otherwise unchanged; tool names and
+  non-sensitive fields are kept.
+- **C4 — stdout prints corrupt the MCP stdio stream (Critical).**
+  All 109 bare `print()` calls converted to stdlib
+  `logging.getLogger(__name__)` (stderr via the default handler) in five
+  modules: `simple_pentest.py:8` (58 calls), `browser_use_adapter.py:12`
+  (11), `crawler/vision_crawler.py:11` (32), `pentest/test_executor.py:9`
+  (6), `burp/burp_mcp_client.py:8` (2, chat-path only but the same stdio
+  hazard class). Mapping: bare prints → deleted; error/❌/connect-failure
+  prints → `logger.error`; ⚠️/failed/timeout/unknown → `logger.warning`;
+  else `logger.info`. Deliberate choice: stdlib logging, not structlog,
+  because structlog's default `PrintLogger` writes to stdout unless
+  configured. No `basicConfig` was added, so with no logging config
+  info-level lines are dropped and warning+ goes to stderr via the
+  lastResort handler — stdout stays clean either way. CLI-facing `rich`
+  `console.print` in `cli/` was not touched. Verified: no bare `print()`
+  remains in `src/` (`grep -P '(?<![\w.])print\('`).
+- **H6 — nikto port dropped (quick win).**
+  Four call sites computed `port` but never passed it, so HTTPS targets
+  were scanned on port 80: `mcp_server.py:725` (autonomous handler),
+  `pentest/orchestrator.py:227` (`_run_reconnaissance`),
+  `cli/commands/pentest.py:114`, `cli/commands/recon.py:194`
+  (`quick_scan`) and `:196` (`full_scan` — same bug at the same site,
+  fixed too). All now pass `port=port, ssl=ssl`. Already-correct sites
+  (`mcp_server.py:941/943`, `simple_pentest.py:_run_recon`) left alone.
+- **M5 — proxy port inconsistency (quick win).**
+  `pentest/orchestrator.py:93` defaulted `proxy_port=8081` and
+  `mcp_server.py:514` passed `BURP_PROXY_PORT` default `"8081"` while
+  everything else uses 8080. Both now default to 8080; no `8081` remains
+  anywhere in `src/`.
+
+Verification (2026-11-11): new `tests/unit/test_security_fixes.py` — 18
+tests (C1 out-of-scope refused with scanners mocked and never called,
+in-scope https → nikto port 443/ssl True, http → port 80; C2 set equality
++ `pentest` tool constructs a non-None browser; C3 helper/AuditLogger/
+agent/MCP-error-path redaction with realistic credentials; C4 AST
+assertion of no bare `print()` in the five modules + a runtime run of
+`SimplePentest._generate_attacks_from_burp` with stdout captured and
+asserted empty; H6/M5 port and proxy-port assertions). Full suite
+**68 passed** (50 pre-existing + 18 new), 0 failed, coverage 41%.
+Ruff: 61 errors, identical to the pre-change baseline (same pre-existing
+style-only findings, line numbers shifted); no new lint errors from this
+change. Fresh-temp-dir smoke: `aipentester init` + `aipentester status`
+exit 0. MCP stdio smoke with a real `mcp` client: initialize OK,
+`list_tools` = 17 tools, `list_resources` = 2, and an out-of-scope
+`pentest_run_autonomous` call over the protocol returned
+`Error: Host 'evil.example' is not in scope. Authorized hosts:
+example.com, *.example.com` (no browser launched, no crash).
+
+Severity notes: no item changed severity. The one thing the fix work
+surfaced is the C1/C2 ordering issue above — an out-of-scope autonomous
+call was being masked by a browser-launch failure in browser-less
+environments; that is fixed by the pre-dispatch scope check, not a
+severity change. Live use still needs Burp Suite Pro + Burp MCP server,
+an Anthropic API key for `chat`/`pentest`, nmap/nikto binaries, and
+Playwright Chromium.
+
