@@ -246,3 +246,17 @@ After fixes:
   with the correct 17-tool list, the manifest-first requirement
   (`AIPENTESTER_MANIFEST` absolute path, valid dates), and the Burp caveat
   above. No code changed; pytest still 33 passed.
+
+## 12. CLAUDE_DESKTOP_SETUP.md was stale in the same ways (doc fix, 2026-11-11)
+
+- Hardcoded the original author's paths (`/Users/nayan/Documents/Code/AIPentester`)
+  in the install step, the venv python, `run_mcp_server.py`, and the manifest
+  path; the manifest example used expired 2024 dates; and it listed the same
+  `burp_*` tools as MCP tools (they are chat-agent only, see §11).
+- Rewrote the guide with `/path/to/AIPentester` placeholders, a venv-based
+  install, the manifest-first requirement (absolute `AIPENTESTER_MANIFEST`,
+  `validate-scope` check), the correct 17-tool list, and the Burp caveat.
+  The config path itself (`~/Library/Application Support/Claude/
+  claude_desktop_config.json`, or Settings → Developer → Edit Config) was
+  verified against current 2026 sources and was already correct, so it is
+  unchanged. No code changed; pytest still 33 passed.
