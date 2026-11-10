@@ -1,4 +1,4 @@
-.PHONY: help install dev-install test lint format type-check pre-commit clean run-init
+.PHONY: help install dev-install test lint format type-check pre-commit clean run-init run-validate run-version build
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,11 +6,14 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+# NOTE: upstream used `uv` here, but uv is not a project dependency and may
+# not be installed. These targets use the active Python's pip instead.
+
 install: ## Install package
-	uv pip install -e .
+	python -m pip install -e .
 
 dev-install: ## Install package with development dependencies
-	uv pip install -e ".[dev]"
+	python -m pip install -e ".[dev]"
 	playwright install chromium
 
 test: ## Run tests
@@ -54,15 +57,14 @@ run-validate: ## Validate engagement manifest
 run-version: ## Show version
 	aipentester version
 
-# Development targets
-watch-test: ## Run tests in watch mode
-	pytest-watch
-
 build: ## Build distribution packages
-	uv build
+	python -m pip install --quiet build
+	python -m build
 
 publish-test: ## Publish to TestPyPI
-	uv publish --repository testpypi
+	python -m pip install --quiet twine
+	python -m twine upload --repository testpypi dist/*
 
 publish: ## Publish to PyPI
-	uv publish
+	python -m pip install --quiet twine
+	python -m twine upload dist/*

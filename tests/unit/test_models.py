@@ -1,13 +1,13 @@
 """Tests for data models."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from pydantic import ValidationError
 
 from aipentester.models.engagement import (
-    CredentialSource,
     Credentials,
+    CredentialSource,
     EngagementInfo,
     MFAMode,
     Scope,
@@ -19,14 +19,16 @@ class TestEngagementInfo:
 
     def test_valid_engagement_info(self) -> None:
         """Test valid engagement info."""
+        # Dates are relative to today: fixed 2024 dates expired, so
+        # is_active() returned False and this test failed.
         info = EngagementInfo(
             name="Test",
             id="TEST-001",
             authorized_by="CISO",
             analyst_name="Analyst",
             analyst_email="analyst@test.com",
-            start_date=date(2024, 1, 1),
-            end_date=date(2024, 12, 31),
+            start_date=date.today() - timedelta(days=1),
+            end_date=date.today() + timedelta(days=365),
             authorization_acknowledgement="Confirmed",
         )
         assert info.name == "Test"

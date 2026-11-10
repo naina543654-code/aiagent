@@ -1,5 +1,12 @@
 # AIPentester
 
+> **Attribution / fixed copy:** This copy originates from
+> [nayangoel/AIPentester](https://github.com/nayangoel/AIPentester) (main,
+> commit `c08e65e`). The upstream snapshot did not work as shipped — the MCP
+> server crashed on import, `validate-scope` and `plan` were missing, and a
+> test failed. This copy fixes those issues; see [FIXES.md](FIXES.md) for the
+> full list of bugs, fixes, and verification evidence.
+
 **AI-powered pentesting assistant for Claude Desktop and Claude Code**
 
 Give Claude superpowers to perform authorized security testing using Browser Use and Burp Suite!

@@ -1,6 +1,6 @@
 """Pytest configuration and fixtures."""
 
-from datetime import date, datetime
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,14 +20,16 @@ from aipentester.models.engagement import (
 @pytest.fixture
 def sample_engagement_info() -> EngagementInfo:
     """Sample engagement info for testing."""
+    # Dates are relative to today so the fixture engagement stays active
+    # (fixed 2024 dates expired and broke is_active()/validate_active()).
     return EngagementInfo(
         name="Test Engagement",
         id="TEST-2024-001",
         authorized_by="Test CISO",
         analyst_name="Test Analyst",
         analyst_email="analyst@test.com",
-        start_date=date(2024, 1, 1),
-        end_date=date(2024, 12, 31),
+        start_date=date.today() - timedelta(days=1),
+        end_date=date.today() + timedelta(days=365),
         authorization_acknowledgement="I confirm authorization",
     )
 
