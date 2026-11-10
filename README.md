@@ -6,6 +6,16 @@
 > server crashed on import, `validate-scope` and `plan` were missing, and a
 > test failed. This copy fixes those issues; see [FIXES.md](FIXES.md) for the
 > full list of bugs, fixes, and verification evidence.
+>
+> **Multi-agent framework:** this copy additionally wires three pieces into
+> one framework — this repo's CLI + MCP server (tool layer), the specialist
+> subagents from the pentest-framework Claude Code scaffold, and the
+> SQLite/scoping/redaction engine from the ai-pentest-framework Python
+> Phase 1 code. Orchestrator + specialists (Sonnet) with a Haiku scripter
+> and scribe, a validator that alone confirms findings, and shared state
+> that survives a crashed session (append-only journal, findings store,
+> scribe-owned `STATE.md`). See [MULTI_AGENT_DESIGN.md](MULTI_AGENT_DESIGN.md),
+> [CLAUDE.md](CLAUDE.md), and `.claude/agents/`.
 
 **AI-powered pentesting assistant for Claude Desktop and Claude Code**
 

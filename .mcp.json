@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "aipentester": {
+      "args": [
+        "/path/to/AIPentester/run_mcp_server.py"
+      ],
+      "command": "/path/to/AIPentester/.venv/bin/python",
+      "env": {
+        "AIPENTESTER_MANIFEST": "/path/to/AIPentester/engagement_manifest.yaml",
+        "BURP_PROXY_HOST": "127.0.0.1",
+        "BURP_PROXY_PORT": "8080"
+      },
+      "type": "stdio"
+    }
+  }
+}

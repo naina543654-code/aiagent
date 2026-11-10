@@ -260,3 +260,65 @@ After fixes:
   claude_desktop_config.json`, or Settings → Developer → Edit Config) was
   verified against current 2026 sources and was already correct, so it is
   unchanged. No code changed; pytest still 33 passed.
+
+## 13. Wiring the three pieces into one multi-agent framework (2026-11-11)
+
+The user asked for the three pieces he already owns to be wired into one
+framework in this repo: AIPentester's CLI + MCP server (tool layer), the
+pentest-framework Claude Code scaffold (specialist agents), and the
+ai-pentest-framework Python Phase 1 code (SQLite store, scope, redaction).
+What landed:
+
+- **`src/aipentester/state/`** — new package. `Journal` (append-only JSONL,
+  redacted on write via the existing `SecretsManager`, fsync per line),
+  `FindingsStore` (SQLite, candidate → needs_validation → confirmed, with
+  confirmation requiring attached evidence, and scope refused at write
+  time via the existing `ScopeValidator`), `Claims` (atomic file-based
+  task claiming with stale-claim takeover), `StateLayout` + `STATE.md`
+  template, and `statefile` (render/parse/rebuild/resume). The
+  ai-pentest-framework state machine and redaction ideas were adapted,
+  not vendored; there is still one scope authority (`ScopeValidator`) and
+  one redaction system (`SecretsManager`).
+- **CLI wiring** — `aipentester init` now creates `state/`, `state/tasks/`,
+  `state/inbox/` and a starter `state/STATE.md`; new `aipentester status`
+  (findings, claims, journal, `STATE.md`) and `aipentester findings add|list`
+  (scope-checked candidate recording + journal event).
+- **`.claude/agents/`** — 13 agents: the 10 pentest-framework agents
+  adapted (Linux/mac-safe, `engagement_manifest.yaml` scope, real 17-tool
+  inventory, no `burp_*` MCP claims) plus a dedicated `xss-agent`
+  (Sonnet), a `scripter` (Haiku), and a `scribe` (Haiku, sole writer of
+  `STATE.md`). Each file carries its model tier, allowed tools, scope rule,
+  and output contract.
+- **`.claude/skills/`** — `start-assessment` and `record-test-result`,
+  adapted to AIPentester's CLI/MCP tools.
+- **`.claude/settings.json` + `.claude/hooks/`** — best-effort PostToolUse
+  hook appending a redacted journal line per MCP tool call, and a Stop
+  hook reminding the session to leave resumable state. Both are stdlib-only
+  and always exit 0. `.claude/settings.local.json` is now gitignored.
+- **`.mcp.json`** — project-scope stdio server entry (placeholder paths,
+  documented in `MULTI_AGENT_DESIGN.md`); validated as JSON.
+- **`CLAUDE.md`** — project instructions (scope, real MCP inventory,
+  delegation/claiming rules, result format, prohibited actions).
+- **`MULTI_AGENT_DESIGN.md`** — the architecture doc, including what was
+  deliberately NOT ported and why (Burp MCP hooks/Phase 3.1 policy,
+  `database/schema.sql` as a whole, the traffic pipeline, the second
+  config format).
+- `mcp_server.py` was not touched. Verification: full pytest suite plus
+  new `tests/unit/test_state.py`; smoke test in a fresh temp dir
+  (`init` → `status` → `validate-scope` behaviour unchanged).
+
+Verification of the wiring (2026-11-11): full suite **50 passed**
+(33 pre-existing + 17 new in `tests/unit/test_state.py` and
+`tests/unit/test_cli.py`); ruff on the new code down to 7 remaining, all
+B008 (`typer.Option`/`Path.cwd()` in argument defaults — the same Typer
+idiom every pre-existing command file uses, left un-restructured).
+Fresh-temp-dir smoke test: `init` exit 0 (creates `state/`,
+`state/STATE.md`, `state/tasks/`, `state/inbox/`), `status` exit 0,
+`findings add` in-scope exit 0 / out-of-scope exit 1, `findings list`
+shows the candidate, `validate-scope` on the sample manifest still exits
+1 ("not active") as before. Hook check: `journal-append.py` with a
+secret-bearing fake PostToolUse payload exited 0 and wrote a redacted
+journal line; `stop-reminder.py` exited 0. All 13 agent frontmatters and
+both skill frontmatters parse as YAML (an unquoted colon in `scribe.md`'s
+description broke parsing and was fixed before commit). `mcp_server.py`
+untouched, so no MCP re-smoke was needed.

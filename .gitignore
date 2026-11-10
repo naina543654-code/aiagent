@@ -72,3 +72,13 @@ engagement_manifest.yaml
 test_mcp_*.py
 test_minimal_mcp.py
 *.sh
+
+# Claude Code local settings can hold allow-rules with secrets.
+.claude/settings.local.json
+
+# Multi-agent runtime state (per engagement, never committed).
+# state/STATE.md stays tracked: it is the scribe-owned resume file.
+state/journal.jsonl
+state/engagement.db*
+state/tasks/
+state/inbox/

@@ -71,3 +71,88 @@ def test_help_lists_new_commands() -> None:
     assert result.exit_code == 0
     assert "validate-scope" in result.output
     assert "plan" in result.output
+
+
+def test_status_after_init(tmp_path: Path, monkeypatch) -> None:
+    """status works on a fresh init dir and reports zero findings."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["init", "--dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "state" / "STATE.md").exists()
+    assert (tmp_path / "state" / "tasks").exists()
+    assert (tmp_path / "state" / "inbox").exists()
+
+    result = runner.invoke(app, ["status", "--dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "Findings by status" in result.output
+    assert "Journal events" in result.output
+
+
+def test_status_without_init(tmp_path: Path, monkeypatch) -> None:
+    """status exits 1 when the project was never initialized."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["status", "--dir", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "init" in result.output
+
+
+def test_findings_add_in_scope_and_out_of_scope(
+    sample_manifest: EngagementManifest, tmp_path: Path, monkeypatch
+) -> None:
+    """findings add records in-scope findings and refuses out-of-scope ones."""
+    manifest_path = _write_manifest(tmp_path, sample_manifest)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+
+    result = runner.invoke(
+        app,
+        [
+            "findings",
+            "add",
+            "--title",
+            "Reflected XSS",
+            "--url",
+            "https://example.com/search?q=x",
+            "--category",
+            "xss",
+            "--severity",
+            "High",
+            "--agent",
+            "xss-agent",
+            "--evidence",
+            "evidence/shot-0001.png",
+            "--manifest",
+            str(manifest_path),
+            "--dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "candidate" in result.output
+
+    result = runner.invoke(
+        app,
+        [
+            "findings",
+            "add",
+            "--title",
+            "Out of scope",
+            "--url",
+            "https://evil.example/search?q=x",
+            "--category",
+            "xss",
+            "--agent",
+            "xss-agent",
+            "--manifest",
+            str(manifest_path),
+            "--dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "out of scope" in result.output.lower()
+
+    result = runner.invoke(app, ["findings", "list", "--dir", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "Reflected XSS" in result.output
+    assert "Out of scope" not in result.output
