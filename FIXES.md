@@ -232,3 +232,17 @@ After fixes:
   venv under `/tmp`, a 512 MB tmpfs, and failed with "No space left on
   device" — an environment limit, not a code issue; the retry on the main
   disk succeeded.)
+
+## 11. CLAUDE_CODE_SETUP.md was stale (doc fix, 2026-11-11)
+
+- It pointed at the old `~/.config/claude-code/config.json` path and the old
+  `claude-code` binary, and listed `burp_get_proxy_history` /
+  `burp_send_to_repeater` / `burp_send_to_intruder` / `burp_collaborator_*`
+  as MCP tools. Those burp_* tools exist only in `agent.py` (the
+  Anthropic-API `chat` agent), not in `mcp_server.py` — the MCP server
+  exposes 17 tools (8 `browser_*`, 3 `pentest_*`, 4 `recon_*`,
+  `pentest_skill_execute`, `pentest`) and 2 resources.
+- Rewrote the guide around `claude mcp add --transport stdio` / `.mcp.json`,
+  with the correct 17-tool list, the manifest-first requirement
+  (`AIPENTESTER_MANIFEST` absolute path, valid dates), and the Burp caveat
+  above. No code changed; pytest still 33 passed.

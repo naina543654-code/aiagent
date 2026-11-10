@@ -2,44 +2,79 @@
 
 ## What This Is
 
-Use AIPentester as an MCP server with **Claude Code** in your Mac terminal! Chat with Claude right in your terminal and it can perform pentests using Browser Use + Burp Suite.
+Use AIPentester as an MCP server with **Claude Code** in your terminal. Chat with
+Claude right in your terminal and it can perform pentests using the browser,
+recon tools, and Burp proxy traffic.
 
-**No Anthropic API key needed** - uses your Claude subscription!
+**No Anthropic API key needed for MCP mode** — it uses your Claude subscription.
+(The `aipentester chat` / `pentest` CLI commands are the ones that need an
+Anthropic API key; MCP mode does not.)
 
-## Setup for Claude Code
+This guide was corrected 2026-11-11: the upstream version pointed at the old
+`~/.config/claude-code/config.json` path and the old `claude-code` binary, and
+listed Burp tools that are not actually exposed over MCP. Both are fixed below.
 
-### 1. Install Prerequisites (Already Done ✅)
-
-```bash
-cd /Users/nayan/Documents/Code/AIPentester
-pip install -e .
-playwright install chromium
-```
-
-### 2. Initialize Project
+## Prerequisites
 
 ```bash
-python -m aipentester.cli.main init
+git clone https://github.com/naina543654-code/AIPentester.git
+cd AIPentester
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/playwright install chromium   # only needed for the browser_* tools
 ```
 
-Edit `engagement_manifest.yaml` with your authorized scope.
+## 1. Initialize a project (required)
 
-### 3. Configure Claude Code MCP
+The MCP server refuses to run tools until it can load an engagement manifest,
+so do this first, in the directory you will pentest from:
 
-Claude Code uses MCP servers configured in `~/.config/claude-code/config.json`
+```bash
+.venv/bin/aipentester init
+```
 
-**Create/Edit:** `~/.config/claude-code/config.json`
+Then edit the generated `engagement_manifest.yaml`:
+
+- Put your **authorized** target in `scope.hosts` (nothing else will be tested —
+  the server validates every URL against this list).
+- Set `start_date` / `end_date` to dates that cover today — the sample manifest
+  ships with expired dates and validation will fail until you fix them.
+- Fill in `authorized_by` and the authorization acknowledgement truthfully.
+
+Check it with:
+
+```bash
+.venv/bin/aipentester validate-scope
+```
+
+It should print `✓ Scope validation passed.` If it doesn't, fix the manifest
+before continuing — Claude Code will hit the same error on every tool call.
+
+## 2. Add the MCP server to Claude Code
+
+Use absolute paths. Replace `/path/to/AIPentester` with your real clone path.
+
+```bash
+claude mcp add --transport stdio --scope project aipentester \
+  --env AIPENTESTER_MANIFEST=/path/to/AIPentester/engagement_manifest.yaml \
+  -- /path/to/AIPentester/.venv/bin/python /path/to/AIPentester/run_mcp_server.py
+```
+
+`--scope project` writes it to `.mcp.json` in the project so it is shared with
+anyone who clones the repo. Use `--scope user` instead if you want it global
+for just you, or `--scope local` for this project only.
+
+Prefer a file instead of the CLI? Create `.mcp.json` in the project root:
 
 ```json
 {
   "mcpServers": {
     "aipentester": {
-      "command": "/Users/nayan/Documents/Code/AIPentester/venv/bin/python",
-      "args": [
-        "/Users/nayan/Documents/Code/AIPentester/run_mcp_server.py"
-      ],
+      "type": "stdio",
+      "command": "/path/to/AIPentester/.venv/bin/python",
+      "args": ["/path/to/AIPentester/run_mcp_server.py"],
       "env": {
-        "AIPENTESTER_MANIFEST": "/Users/nayan/Documents/Code/AIPentester/engagement_manifest.yaml",
+        "AIPENTESTER_MANIFEST": "/path/to/AIPentester/engagement_manifest.yaml",
         "BURP_PROXY_HOST": "127.0.0.1",
         "BURP_PROXY_PORT": "8080"
       }
@@ -48,325 +83,145 @@ Claude Code uses MCP servers configured in `~/.config/claude-code/config.json`
 }
 ```
 
-**Adjust paths if needed!**
+### Verify it loaded
 
-### 4. Start Burp Suite
-
-Terminal 1:
 ```bash
-# Make sure Burp Suite Professional is running
-# Proxy on 127.0.0.1:8080
+claude mcp list
+```
 
-# Start Burp MCP server
+Then start Claude Code (`claude`) and run `/mcp` inside the session — `aipentester`
+should show as connected. Ask it:
+
+```
+What tools do you have access to?
+```
+
+It should list the AIPentester tools below.
+
+## 3. Tools Claude Code actually gets
+
+Verified against the fixed server (real MCP client handshake: 17 tools,
+2 resources). These are the tools Claude Code can call:
+
+**Browser (traffic goes through the Burp proxy):**
+`browser_navigate`, `browser_login`, `browser_screenshot`,
+`browser_get_page_text`, `browser_find_elements`, `browser_click_element`,
+`browser_extract_links`, `browser_find_forms`
+
+**Pentest:**
+`pentest_crawl_application`, `pentest_analyze_threats`,
+`pentest_run_autonomous`, `pentest`, `pentest_skill_execute`
+
+**Recon (needs the binaries installed):**
+`recon_nmap_quick_scan`, `recon_nmap_service_scan`, `recon_nmap_vuln_scan`,
+`recon_nikto_scan`
+
+**Resources:** `aipentester://manifest` (engagement manifest),
+`aipentester://scope` (target scope).
+
+### What you do NOT get over MCP
+
+The upstream docs listed `burp_get_proxy_history`, `burp_send_to_repeater`,
+`burp_send_to_intruder`, `burp_collaborator_generate`, and
+`burp_collaborator_check` as MCP tools. **They are not MCP tools.** They exist
+only in `src/aipentester/agent.py` — the Anthropic-API chat agent behind
+`aipentester chat`. Claude Code cannot call them directly.
+
+What Claude Code *does* get from Burp is indirect: browser traffic is routed
+through the Burp proxy (default `127.0.0.1:8080`), so requests are captured
+there for you to inspect manually. If you want Burp's own MCP server as well,
+run it separately — it is a different server, not this one:
+
+```bash
+# Terminal 1: Burp Suite Professional running, proxy on 127.0.0.1:8080
 npx -y @burp-suite-mcp/server
 ```
 
-### 5. Start Claude Code
+Note: this project's `BurpMCPClient` targets an undocumented Burp HTTP API and
+has **not** been verified against the real Burp MCP server, so treat any
+Burp-backed behaviour as untested until you confirm it yourself.
 
-Terminal 2:
+## 4. Start pentesting
+
 ```bash
-claude-code
+claude
 ```
-
-Or if you have a project directory:
-```bash
-cd /path/to/your/project
-claude-code
-```
-
-### 6. Start Pentesting!
-
-In Claude Code terminal:
 
 ```
 You: I need to test app.example.com for XSS vulnerabilities
 
-Claude: I can help with that! Let me start by navigating to the application...
-[uses browser_navigate tool]
+Claude: Let me check the scope first...
+[reads aipentester://scope]
 
-I can see we're at the login page. Would you like me to login using the credentials?
-
-You: Yes, login with credentials from the environment
-
-Claude: Logging in now...
-[uses browser_login tool]
-
-Success! Now let me check the proxy history to find interesting endpoints...
-[uses burp_get_proxy_history]
-
-I found several endpoints. The /search endpoint looks promising for XSS testing.
-Let me send it to Burp Intruder with XSS payloads...
+app.example.com is in scope. Navigating there now...
+[uses browser_navigate]
 ```
 
-## Available Tools
+## Troubleshooting
 
-Claude Code can use:
+### MCP server not loading
 
-1. **browser_navigate** - Navigate with Burp proxy
-2. **browser_login** - Authenticate
-3. **browser_screenshot** - Capture evidence
-4. **burp_get_proxy_history** - View requests
-5. **burp_send_to_repeater** - Manual testing
-6. **burp_send_to_intruder** - Automated fuzzing
-7. **burp_collaborator_generate** - OOB testing
-8. **burp_collaborator_check** - Check callbacks
+- Check `claude mcp list` and `/mcp` in the session for the error.
+- Paths in the config must be **absolute**; use the `.venv/bin/python` from
+  the install step, not the system python.
+- Test the server manually — it should wait on stdin (that is correct
+  behaviour for a stdio server; Ctrl-C to stop it):
 
-## Example Commands
-
-### Basic Testing
-```
-You: Test https://app.example.com for common vulnerabilities
-
-You: Check the search parameter for XSS and SQL injection
-
-You: Use Collaborator to test for SSRF vulnerabilities
+```bash
+/path/to/AIPentester/.venv/bin/python /path/to/AIPentester/run_mcp_server.py
 ```
 
-### Workflow-Based
+It prints `AIPentester MCP server starting...` to stderr, then waits. If it
+exits with an import error instead, your install is broken — reinstall with
+`.venv/bin/pip install -e ".[dev]"`.
+
+### "Engagement manifest not found" / scope validation errors
+
+- The server reads `AIPENTESTER_MANIFEST` if set, otherwise
+  `engagement_manifest.yaml` in the **current working directory** — and Claude
+  Code starts the server with its own working directory, so always set
+  `AIPENTESTER_MANIFEST` to an absolute path (as in the setup above).
+- Fix the manifest dates and `scope.hosts`, then restart Claude Code (or run
+  `/mcp reconnect all`) to reload it.
+
+### Burp not connecting
+
+```bash
+# Check if the Burp proxy is running
+curl -x http://127.0.0.1:8080 http://example.com
+```
+
+Browser tools proxy through Burp; if Burp isn't up they will fail. Recon
+tools need `nmap` / `nikto` installed on your machine.
+
+## Security notes
+
+- All URLs are validated against the engagement manifest; out-of-scope
+  targets are refused.
+- All actions are logged to `audit_trail/`.
+- Only test targets you are authorized to test.
+
+## Tips for effective use
+
+Be specific:
+
+```
+❌ "Test for vulnerabilities"
+✅ "Test the search parameter for XSS"
+```
+
+Provide context:
+
+```
+✅ "I'm testing an e-commerce app. Focus on the checkout flow."
+```
+
+Use multi-step requests:
+
 ```
 You:
 1. Navigate to app.example.com
 2. Login as testuser
 3. Find all form inputs
 4. Test each one for XSS
-
-You: Help me test the checkout flow for business logic flaws
 ```
-
-### Context Provision
-```
-You: Here's a previous pentest report. Retest all findings:
-[paste report or describe findings]
-
-You: The app was vulnerable to XSS in /search?q= in v1.2.
-Version 1.3 supposedly fixed it. Can you verify?
-```
-
-## Checking if MCP Server is Loaded
-
-In Claude Code:
-
-```
-You: What tools do you have access to?
-
-Claude: I have access to these AIPentester tools:
-- browser_navigate: Navigate to URLs through Burp proxy
-- browser_login: Authenticate to applications
-[... lists all tools ...]
-```
-
-## Workflow Example
-
-```bash
-# Terminal 1: Burp MCP Server
-npx -y @burp-suite-mcp/server
-
-# Terminal 2: Claude Code
-claude-code
-```
-
-Then in Claude Code:
-```
-You: Let's pentest app.example.com
-
-Claude: I can help! First, I need to check if this is in our authorized scope.
-[reads engagement manifest resource]
-
-Yes, app.example.com is in scope. Let me navigate there...
-[uses browser_navigate]
-
-I see a login page. Should I attempt to login?
-
-You: Yes, use the creds from environment
-
-Claude: [uses browser_login]
-Success! I'm now logged in. Let me check what requests were captured...
-[uses burp_get_proxy_history]
-
-I see several interesting endpoints:
-1. /api/search?q=
-2. /api/user/profile?id=
-3. /admin/settings
-
-Which would you like me to test first, or should I start with the most common vulnerabilities?
-
-You: Test the search for XSS
-
-Claude: [uses burp_send_to_intruder with XSS payloads]
-
-FINDING: Reflected XSS detected!
-- Parameter: q
-- Payload: <img src=x onerror=alert(1)>
-- Evidence: Payload reflected in HTML without encoding
-
-I've sent this to Burp Repeater for you to verify manually.
-Would you like me to continue testing other parameters?
-```
-
-## Advantages of Claude Code Terminal
-
-1. **Integrated with your workflow** - Stay in terminal
-2. **File access** - Claude can read/write files in your project
-3. **Git integration** - Can commit findings
-4. **Natural language** - Just describe what you want
-5. **Full context** - Remembers the whole conversation
-
-## Tips for Effective Use
-
-### Be Specific
-```
-❌ "Test for vulnerabilities"
-✅ "Test the search parameter for XSS using Burp Intruder"
-```
-
-### Provide Context
-```
-✅ "I'm testing an e-commerce app. Focus on the checkout flow and payment processing"
-```
-
-### Ask for Help
-```
-✅ "What should I test next given what we've found so far?"
-✅ "Explain this SQL injection finding"
-✅ "How can I verify this XSS is exploitable?"
-```
-
-### Use Multi-Step Requests
-```
-You:
-1. Navigate to the app
-2. Login
-3. Find the admin panel
-4. Test for authorization bypass
-5. Document any findings
-```
-
-## Combining with Other MCP Servers
-
-You can use AIPentester alongside other MCP servers:
-
-```json
-{
-  "mcpServers": {
-    "aipentester": { ... },
-    "filesystem": { ... },
-    "github": { ... }
-  }
-}
-```
-
-This lets Claude:
-- Pentest with AIPentester
-- Write reports to files
-- Create GitHub issues for findings
-- All in one conversation!
-
-## Troubleshooting
-
-### MCP Server Not Loading
-
-Check `~/.config/claude-code/config.json`:
-```bash
-cat ~/.config/claude-code/config.json
-```
-
-Verify:
-- Paths are absolute
-- Python path is correct (use `which python` in your venv)
-- manifest path exists
-
-### Test MCP Server Manually
-
-```bash
-cd /Users/nayan/Documents/Code/AIPentester
-venv/bin/python run_mcp_server.py
-```
-
-Should wait for stdin (that's correct behavior).
-
-### Burp Not Connecting
-
-```bash
-# Check if Burp proxy is running
-curl -x http://127.0.0.1:8080 http://example.com
-
-# Check if Burp MCP is running
-npx -y @burp-suite-mcp/server
-```
-
-### Scope Validation Errors
-
-Edit `engagement_manifest.yaml` and add your target to `scope.hosts`.
-
-Then restart Claude Code to reload the manifest.
-
-## Security Notes
-
-- All URLs validated against engagement manifest
-- All actions logged to `audit_trail/`
-- Only authorized Burp tools used (no automatic exploitation)
-- Screenshots saved to `evidence/screenshots/`
-
-## Example Session
-
-```bash
-$ claude-code
-
-Claude Code v0.1.0
-
-You: I want to test app.example.com for XSS
-
-Claude: I'll help you test for XSS. Let me first verify this is in our authorized scope...
-✓ app.example.com is in scope
-
-Navigating to https://app.example.com...
-✓ Navigation complete. Screenshot saved to evidence/screenshots/screenshot_0001.png
-
-I see a login form. Would you like me to login?
-
-You: yes
-
-Claude: Logging in with credentials from environment...
-✓ Login successful
-
-Now checking proxy history for interesting endpoints...
-
-Found these requests:
-1. POST /login - 302
-2. GET /dashboard - 200
-3. GET /search?q=test - 200  ← This looks promising for XSS
-4. GET /api/products - 200
-
-Let me test the search endpoint for XSS...
-
-Sending to Burp Intruder with 50 XSS payloads...
-✓ Attack complete
-
-FINDING: Reflected XSS Vulnerability
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-URL: https://app.example.com/search
-Parameter: q
-Payload: <img src=x onerror=alert(1)>
-Response: Payload reflected without encoding
-
-Evidence:
-- Request sent to Burp Repeater (tab #1)
-- Screenshot: evidence/screenshots/screenshot_0002.png
-
-Would you like me to:
-1. Test other parameters for XSS
-2. Test for other vulnerability types
-3. Document this finding
-
-You: document it and continue testing
-
-Claude: Creating finding report...
-✓ Report saved to findings/xss_search_parameter.md
-
-Continuing with security testing...
-[continues testing]
-```
-
----
-
-**You're ready! Just run `claude-code` and start pentesting! 🚀**
