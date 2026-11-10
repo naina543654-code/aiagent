@@ -1,0 +1,46 @@
+engagement:
+  name: Example Assessment
+  id: ENG-YYYY-NNN
+  authorized_by: Authorizing Party Name and Title
+  analyst_name: Your Name
+  analyst_email: your.email@example.com
+  start_date: '2024-01-01'
+  end_date: '2024-12-31'
+  authorization_acknowledgement: I confirm that I have received written authorization
+    to perform security testing against the targets specified in this manifest.
+
+scope:
+  hosts:
+  - example.com
+  - '*.example.com'
+  excluded_paths:
+  - /admin/dangerous-action
+  max_request_rate: 5
+  courtesy_delay_ms: 200
+
+credentials:
+  source: env
+  env_vars:
+    username: TEST_APP_USERNAME
+    password: TEST_APP_PASSWORD
+  mfa_mode: none
+
+approved_categories:
+- xss
+- sqli
+- authz
+- idor
+- csrf
+- business_logic
+
+safety:
+  require_approval_gate: true
+  dry_run: false
+  panic_stop_enabled: true
+  audit_log_enabled: true
+  audit_log_path: ./audit_trail
+
+evidence:
+  storage_path: ./evidence
+  encrypt_at_rest: true
+  retention_days: 90

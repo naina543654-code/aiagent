@@ -1,0 +1,19 @@
+[
+   {
+      "end_time" : "2026-04-26 15:50:40 -0700",
+      "host" : "unsaidtalks.com",
+      "ip" : "82.25.125.107",
+      "port" : "80",
+      "server_banner" : null,
+      "start_time" : "2026-04-26 15:50:40 -0700",
+      "vulnerabilities" : [
+         {
+            "id" : "FAIL",
+            "method" : "GET",
+            "msg" : "Unable to connect to unsaidtalks.com:80.",
+            "references" : "",
+            "url" : "/"
+         }
+      ]
+   }
+]
