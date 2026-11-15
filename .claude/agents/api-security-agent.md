@@ -17,6 +17,15 @@ active request.
   do not exist over MCP. Browser traffic routes through the Burp proxy
   (127.0.0.1:8080) for capture.
 
+## All traffic through Burp (mandatory)
+
+- EVERY HTTP request to the target goes through the Burp proxy at 127.0.0.1:8080 — no exceptions, no direct requests.
+- Browser: use the `browser_*` MCP tools only — they already route through Burp.
+- curl: always add `-x http://127.0.0.1:8080`, e.g. `curl -x http://127.0.0.1:8080 "http://127.0.0.1:10015/search?q=test"`. Never run curl without `-x`.
+- Python: pass `proxies={"http": "http://127.0.0.1:8080", "https": "http://127.0.0.1:8080"}` to requests, or use a `ProxyHandler` for urllib. PoC scripts must do this.
+- Before any requests in a shell, set the proxy env: PowerShell `$env:HTTP_PROXY="http://127.0.0.1:8080"; $env:HTTPS_PROXY="http://127.0.0.1:8080"; $env:NO_PROXY=""` / bash `export HTTP_PROXY=http://127.0.0.1:8080 HTTPS_PROXY=http://127.0.0.1:8080; unset NO_PROXY no_proxy`. Loopback (127.0.0.1/localhost) must NOT be in NO_PROXY — Windows/Python skip the proxy for localhost by default.
+- If Burp is not running on 127.0.0.1:8080, stop and say so — do not work around it with direct requests.
+
 ## Work
 
 Review object/function authorization, property-level authorization, mass

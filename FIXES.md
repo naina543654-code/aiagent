@@ -443,3 +443,25 @@ Playwright Chromium.
 - **Verification:** 9 new tests in `tests/unit/test_scope_txt.py`;
   full suite 77 passed (was 68). `aipentester validate-scope` passes
   in a folder containing only `scope.txt` with `127.0.0.1`.
+
+## All traffic through Burp (2026-11-15)
+
+- **Request:** all requests must go through Burp, not just browser traffic.
+- **Problem:** the loopback first run confirmed 4/4 findings, but none of
+  the requests went through Burp — the Claude Code subagents used direct
+  `curl` / Python requests, which bypass the proxy unless told otherwise.
+  Only the `browser_*` MCP tools routed through Burp automatically.
+- **Change:** new central helper `src/aipentester/safety/burp_proxy.py`
+  (`proxy_url()`, `proxies_dict()`, `curl_proxy_args()`,
+  `proxied_curl_command()`, `ensure_burp_proxy_env()`), called at MCP
+  server and CLI startup so every child process inherits
+  `HTTP_PROXY`/`HTTPS_PROXY` = `http://127.0.0.1:8080` with
+  `NO_PROXY`/`no_proxy` cleared (loopback must not be bypassed).
+  `poc_generator` now generates curl commands with `-x` for Burp.
+  All 13 files in `.claude/agents/*.md` now carry a mandatory
+  "All traffic through Burp" rule (curl `-x`, Python proxies dict,
+  proxy env, stop if Burp is down). Added
+  `scripts/use-burp-proxy.ps1` / `.sh` to set the proxy env for a
+  Claude Code session, and documented it in `CLAUDE_CODE_SETUP.md`.
+- **Verification:** 5 new tests in `tests/unit/test_burp_proxy.py`;
+  full suite 82 passed (was 77).
