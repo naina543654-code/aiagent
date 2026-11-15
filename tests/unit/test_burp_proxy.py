@@ -75,7 +75,10 @@ def test_require_burp_fails_when_burp_down(monkeypatch):
         require_burp()
 
 
-def test_all_agents_mandate_mcp_only_traffic():
+def test_all_agents_mandate_curl_through_burp():
+    # curl/Bash is allowed for payload testing (it is faster than the
+    # GUI for e.g. injection on a search param), but it must always
+    # go through Burp — never a direct request.
     from pathlib import Path
 
     agents = list(Path("src/aipentester").parent.glob(".claude/agents/*.md"))
@@ -85,5 +88,6 @@ def test_all_agents_mandate_mcp_only_traffic():
     assert len(agents) == 13
     for p in agents:
         text = p.read_text()
-        assert "Use ONLY the MCP tools" in text, p.name
-        assert "NEVER use Bash `curl`" in text, p.name
+        assert "curl / Bash is allowed" in text, p.name
+        assert "-x http://127.0.0.1:8080" in text, p.name
+        assert "EVERY HTTP request" in text, p.name

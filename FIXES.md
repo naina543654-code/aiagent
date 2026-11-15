@@ -479,3 +479,14 @@ Playwright Chromium.
   convenience, not a requirement.
 - **Verification:** 2 new tests (require_burp fails fast, all 13 agents
   mandate MCP-only); full suite 84 passed (was 82).
+
+## curl/Bash allowed again, still through Burp (2026-11-15)
+
+- **Correction:** the MCP-only ban was too strict — curl/Bash is the
+  right tool for injection testing (e.g. a search param), far easier
+  than the GUI. Reverted: all 13 agents now allow curl/Bash, but it
+  must ALWAYS go through Burp, either with `-x http://127.0.0.1:8080`
+  on every curl or by setting the proxy env once at the start of the
+  shell session. MCP tools still route through Burp automatically,
+  and the MCP server still fails fast if Burp is down.
+- **Verification:** updated agent-rule test; full suite 84 passed.
