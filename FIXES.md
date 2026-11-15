@@ -490,3 +490,15 @@ Playwright Chromium.
   shell session. MCP tools still route through Burp automatically,
   and the MCP server still fails fast if Burp is down.
 - **Verification:** updated agent-rule test; full suite 84 passed.
+
+## nmap scan removed (2026-11-16)
+
+- **Request:** no need of nmap scan — remove it.
+- **Change:** all three `recon_nmap_*` MCP tools (14 tools now, was 17),
+  the `aipentester recon nmap-*` CLI commands, the nmap step in
+  `pentest_run_autonomous` / CLI pentest / orchestrator / SimplePentest,
+  and `src/aipentester/recon/nmap_scanner.py` itself are removed.
+  Recon is nikto-only now. Threat-analyzer nmap handling remains as
+  dead code (it only reads a `nmap` key that is never populated).
+- **Verification:** new `tests/unit/test_nmap_removed.py` (no nmap MCP
+  tool, no NmapScanner import, no nmap CLI command); full suite 87 passed.

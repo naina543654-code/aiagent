@@ -35,8 +35,7 @@ The MCP server (`run_mcp_server.py`, stdio) exposes exactly 17 tools:
   `browser_extract_links`, `browser_find_forms`
 - Pentest: `pentest_crawl_application`, `pentest_analyze_threats`,
   `pentest_run_autonomous`, `pentest`, `pentest_skill_execute`
-- Recon: `recon_nmap_quick_scan`, `recon_nmap_service_scan`,
-  `recon_nmap_vuln_scan`, `recon_nikto_scan`
+- Recon: `recon_nikto_scan` (nmap removed)
 
 Resources: `aipentester://manifest`, `aipentester://scope`.
 

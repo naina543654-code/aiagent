@@ -41,17 +41,13 @@ def _set_mcp_globals(monkeypatch, manifest: EngagementManifest) -> None:
     monkeypatch.setattr(mcp_server, "audit_logger", None)
 
 
-def _mock_scanners(monkeypatch) -> tuple[AsyncMock, AsyncMock]:
-    """Stub the module-level nmap/nikto scanners with canned results."""
-    nmap = AsyncMock()
-    nmap.quick_scan.return_value = {"hosts": []}
-    nmap.format_results.return_value = "nmap: no open ports"
+def _mock_scanners(monkeypatch) -> AsyncMock:
+    """Stub the module-level nikto scanner with canned results (nmap removed)."""
     nikto = AsyncMock()
     nikto.quick_scan.return_value = {"vulnerabilities": []}
     nikto.format_results.return_value = "nikto: no issues"
-    monkeypatch.setattr(mcp_server, "nmap_scanner", nmap)
     monkeypatch.setattr(mcp_server, "nikto_scanner", nikto)
-    return nmap, nikto
+    return nikto
 
 
 def _mock_browser_spider_threat(monkeypatch) -> None:
@@ -81,9 +77,9 @@ def _mock_browser_spider_threat(monkeypatch) -> None:
 async def test_autonomous_out_of_scope_refused_before_recon(
     sample_manifest: EngagementManifest, monkeypatch
 ) -> None:
-    """Out-of-scope start_url is refused and nmap/nikto never run (C1)."""
+    """Out-of-scope start_url is refused and nikto never runs (C1)."""
     _set_mcp_globals(monkeypatch, sample_manifest)
-    nmap, nikto = _mock_scanners(monkeypatch)
+    nikto = _mock_scanners(monkeypatch)
     _mock_browser_spider_threat(monkeypatch)
 
     result = await mcp_server.call_tool(
@@ -92,7 +88,6 @@ async def test_autonomous_out_of_scope_refused_before_recon(
     text = result[0]["text"]
     assert "not in scope" in text
     assert "evil.example" in text
-    nmap.quick_scan.assert_not_called()
     nikto.quick_scan.assert_not_called()
     mcp_server.spider.map_application.assert_not_called()
 
@@ -102,7 +97,7 @@ async def test_autonomous_in_scope_runs_recon_with_port(
 ) -> None:
     """In-scope https start_url reaches recon, nikto on port 443 (C1+C5)."""
     _set_mcp_globals(monkeypatch, sample_manifest)
-    nmap, nikto = _mock_scanners(monkeypatch)
+    nikto = _mock_scanners(monkeypatch)
     _mock_browser_spider_threat(monkeypatch)
 
     result = await mcp_server.call_tool(
@@ -110,7 +105,6 @@ async def test_autonomous_in_scope_runs_recon_with_port(
     )
     text = result[0]["text"]
     assert "Autonomous scan complete" in text
-    nmap.quick_scan.assert_awaited_once()
     nikto.quick_scan.assert_awaited_once()
     args, kwargs = nikto.quick_scan.call_args
     assert args[0] == "example.com"
@@ -123,7 +117,7 @@ async def test_autonomous_http_uses_port_80(
 ) -> None:
     """In-scope http start_url reaches nikto on port 80 (C5)."""
     _set_mcp_globals(monkeypatch, sample_manifest)
-    _, nikto = _mock_scanners(monkeypatch)
+    nikto = _mock_scanners(monkeypatch)
     _mock_browser_spider_threat(monkeypatch)
 
     await mcp_server.call_tool(
@@ -331,8 +325,6 @@ async def test_orchestrator_recon_passes_port(
         audit_logger=MagicMock(),
         approved_categories=["xss"],
     )
-    orchestrator.nmap_scanner = AsyncMock()
-    orchestrator.nmap_scanner.quick_scan.return_value = {"hosts": []}
     orchestrator.nikto_scanner = AsyncMock()
     orchestrator.nikto_scanner.quick_scan.return_value = {"vulnerabilities": []}
     state = PentestState(target_url="https://example.com:8443/app")
@@ -420,7 +412,6 @@ async def test_orchestrator_initialize_uses_port_8080(
     browser_cls.return_value.initialize = AsyncMock()
     monkeypatch.setattr(orch_mod, "BrowserUseAdapter", browser_cls)
     monkeypatch.setattr(orch_mod, "IntelligentSpider", MagicMock())
-    monkeypatch.setattr(orch_mod, "NmapScanner", MagicMock())
     monkeypatch.setattr(orch_mod, "NiktoScanner", MagicMock())
     monkeypatch.setattr(orch_mod, "ThreatAnalyzer", MagicMock())
 
@@ -450,9 +441,9 @@ async def test_recon_handlers_still_scope_check(
 ) -> None:
     """Recon tools still refuse out-of-scope targets (unchanged behaviour)."""
     _set_mcp_globals(monkeypatch, sample_manifest)
-    nmap, _ = _mock_scanners(monkeypatch)
+    nikto = _mock_scanners(monkeypatch)
     result = await mcp_server.call_tool(
-        "recon_nmap_quick_scan", {"target": "evil.example"}
+        "recon_nikto_scan", {"target": "evil.example"}
     )
     assert "not in scope" in result[0]["text"]
-    nmap.quick_scan.assert_not_called()
+    nikto.quick_scan.assert_not_called()

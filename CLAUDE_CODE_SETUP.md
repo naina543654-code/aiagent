@@ -145,7 +145,7 @@ It should list the AIPentester tools below.
 
 ## 3. Tools Claude Code actually gets
 
-Verified against the fixed server (real MCP client handshake: 17 tools,
+Verified against the fixed server (real MCP client handshake: 14 tools,
 2 resources). These are the tools Claude Code can call:
 
 **Browser (traffic goes through the Burp proxy):**
@@ -158,7 +158,6 @@ Verified against the fixed server (real MCP client handshake: 17 tools,
 `pentest_run_autonomous`, `pentest`, `pentest_skill_execute`
 
 **Recon (needs the binaries installed):**
-`recon_nmap_quick_scan`, `recon_nmap_service_scan`, `recon_nmap_vuln_scan`,
 `recon_nikto_scan`
 
 **Resources:** `aipentester://manifest` (engagement manifest),
@@ -237,7 +236,7 @@ curl -x http://127.0.0.1:8080 http://example.com
 ```
 
 Browser tools proxy through Burp; if Burp isn't up they will fail. Recon
-tools need `nmap` / `nikto` installed on your machine.
+tools need `nikto` installed on your machine.
 
 ## Security notes
 
