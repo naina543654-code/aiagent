@@ -23,14 +23,13 @@ approvals, and conclusions. Do not launch tests or delegate subagents.
   presented as callable MCP tools. In MCP mode, Burp's role is that browser
   traffic routes through the Burp proxy (127.0.0.1:8080).
 
-## All traffic through Burp (mandatory)
+## All traffic through Burp (mandatory, via MCP)
 
-- EVERY HTTP request to the target goes through the Burp proxy at 127.0.0.1:8080 — no exceptions, no direct requests.
-- Browser: use the `browser_*` MCP tools only — they already route through Burp.
-- curl: always add `-x http://127.0.0.1:8080`, e.g. `curl -x http://127.0.0.1:8080 "http://127.0.0.1:10015/search?q=test"`. Never run curl without `-x`.
-- Python: pass `proxies={"http": "http://127.0.0.1:8080", "https": "http://127.0.0.1:8080"}` to requests, or use a `ProxyHandler` for urllib. PoC scripts must do this.
-- Before any requests in a shell, set the proxy env: PowerShell `$env:HTTP_PROXY="http://127.0.0.1:8080"; $env:HTTPS_PROXY="http://127.0.0.1:8080"; $env:NO_PROXY=""` / bash `export HTTP_PROXY=http://127.0.0.1:8080 HTTPS_PROXY=http://127.0.0.1:8080; unset NO_PROXY no_proxy`. Loopback (127.0.0.1/localhost) must NOT be in NO_PROXY — Windows/Python skip the proxy for localhost by default.
-- If Burp is not running on 127.0.0.1:8080, stop and say so — do not work around it with direct requests.
+- EVERY HTTP request to the target goes through Burp on 127.0.0.1:8080 — no exceptions, no direct requests, no manual setup.
+- Use ONLY the MCP tools for target traffic: `browser_*` for browsing, `pentest_*` / `pentest_skill_execute` / `pentest` for testing. Those already route through Burp automatically — the MCP server sets the proxy up when it starts, you do nothing.
+- NEVER use Bash `curl` / `wget` or direct Python `requests` / `urllib` against the target. If a check cannot be done with an MCP tool, stop and say so — do not work around it with a direct request.
+- PoC scripts must have the Burp proxy built in, not rely on env vars: Python PoCs use `proxies={"http": "http://127.0.0.1:8080", "https": "http://127.0.0.1:8080"}` in every request, curl PoCs use `-x http://127.0.0.1:8080`. That way running the script goes through Burp automatically.
+- If Burp is not running on 127.0.0.1:8080, the MCP server itself refuses to start and tells you to start Burp first — do not work around it with direct requests.
 
 ## Work
 

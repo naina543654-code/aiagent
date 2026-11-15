@@ -465,3 +465,17 @@ Playwright Chromium.
   Claude Code session, and documented it in `CLAUDE_CODE_SETUP.md`.
 - **Verification:** 5 new tests in `tests/unit/test_burp_proxy.py`;
   full suite 82 passed (was 77).
+
+## MCP-only Burp integration (2026-11-15)
+
+- **Request:** no manual folder/script steps — Burp must be integrated in
+  MCP so it happens automatically.
+- **Change:** all 13 agents now mandate MCP tools only for target traffic
+  (never Bash curl/wget or direct Python requests); PoC scripts must embed
+  the Burp proxy (proxies dict / `-x`) so running them is automatic.
+  MCP server sets the proxy env at startup and now fails fast with a clear
+  error if Burp is not reachable on 127.0.0.1:8080, instead of silently
+  bypassing it. `scripts/start-claude.ps1` remains as a one-command
+  convenience, not a requirement.
+- **Verification:** 2 new tests (require_burp fails fast, all 13 agents
+  mandate MCP-only); full suite 84 passed (was 82).
