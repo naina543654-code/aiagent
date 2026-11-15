@@ -429,3 +429,17 @@ severity change. Live use still needs Burp Suite Pro + Burp MCP server,
 an Anthropic API key for `chat`/`pentest`, nmap/nikto binaries, and
 Playwright Chromium.
 
+
+## Scope-only mode (2026-11-15)
+
+- **Request:** scope should be a simple txt file, not a full manifest.
+- **Change:** `EngagementManifest.from_file()` / `from_yaml_file()` now accept
+  a `scope.txt` (one host per line, `#` comments and full URLs allowed),
+  a YAML file with only a `scope:` section, and fall back to a `scope.txt`
+  next to a missing `engagement_manifest.yaml`. Engagement, dates
+  (today to today + 30 days), authorization and credentials are filled
+  in with safe defaults (self-authorized, interactive credentials).
+  MCP server, `validate-scope` and `chat` all accept it.
+- **Verification:** 9 new tests in `tests/unit/test_scope_txt.py`;
+  full suite 77 passed (was 68). `aipentester validate-scope` passes
+  in a folder containing only `scope.txt` with `127.0.0.1`.

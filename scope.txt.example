@@ -1,0 +1,5 @@
+# Scope-only mode: one host per line. Blank lines and # comments are ignored.
+# A full URL works too — only the host part is kept.
+127.0.0.1
+# example.com
+# *.example.com

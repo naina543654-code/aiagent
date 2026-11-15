@@ -24,7 +24,22 @@ python -m venv .venv
 .venv/bin/playwright install chromium   # only needed for the browser_* tools
 ```
 
-## 1. Initialize a project (required)
+## Scope-only mode (just a scope.txt)
+
+If you only want to give the scope, you don't need the full manifest.
+Put a file called `scope.txt` in the project folder, one host per line:
+
+```
+127.0.0.1
+```
+
+That is all. The engagement name, dates (today to today + 30 days),
+authorization ("self (scope.txt)") and credentials (interactive) are
+filled in automatically. It also works as a YAML file with only a
+`scope:` section, and as `AIPENTESTER_MANIFEST` pointing at a `.txt`
+file. The full `engagement_manifest.yaml` still works exactly as before.
+
+## 1. Initialize a project (required for the full manifest)
 
 The MCP server refuses to run tools until it can load an engagement manifest,
 so do this first, in the directory you will pentest from:
